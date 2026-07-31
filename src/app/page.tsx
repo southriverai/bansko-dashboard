@@ -1,65 +1,72 @@
 import Clock from "@/components/Clock";
-import { EVENTS, GROUPS, type EventItem, type LinkItem } from "@/data/bansko";
+import { EVENTS, type BanskoEvent } from "@/data/bansko";
 import { readGroupStats } from "@/lib/stats";
 
-function LinkRow({ item }: { item: LinkItem }) {
-  const inner = (
-    <div className="flex items-start justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-white/5">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-100">{item.name}</p>
-        {item.note && <p className="truncate text-xs text-slate-400">{item.note}</p>}
-      </div>
-      {item.href ? (
-        <span className="shrink-0 text-xs font-medium text-emerald-400">Open ↗</span>
-      ) : (
-        <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-600">
-          link&nbsp;tbd
-        </span>
-      )}
-    </div>
-  );
-  return item.href ? (
-    <a href={item.href} target="_blank" rel="noreferrer" className="block">
-      {inner}
-    </a>
-  ) : (
-    inner
-  );
+const TAG_STYLES: Record<string, string> = {
+  dance: "bg-fuchsia-500/15 text-fuchsia-300",
+  outdoors: "bg-emerald-500/15 text-emerald-300",
+  sport: "bg-sky-500/15 text-sky-300",
+  social: "bg-amber-500/15 text-amber-300",
+  wellness: "bg-teal-500/15 text-teal-300",
+  music: "bg-violet-500/15 text-violet-300",
+  work: "bg-slate-400/15 text-slate-300",
+};
+
+function shortDate(iso: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Sofia",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
 }
 
-function EventRow({ e }: { e: EventItem }) {
+/** An event plus its provenance: which groups advertised it, by whom, when. */
+function EventCard({ e }: { e: BanskoEvent }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 rounded-lg px-3 py-2 hover:bg-white/5">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-100">{e.title}</p>
-        {e.where && <p className="truncate text-xs text-slate-400">{e.where}</p>}
-      </div>
-      <span className="shrink-0 text-xs text-slate-300">{e.when}</span>
-    </div>
-  );
-}
-
-function Card({
-  emoji,
-  title,
-  blurb,
-  children,
-}: {
-  emoji: string;
-  title: string;
-  blurb: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
-      <header className="mb-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-          <span aria-hidden>{emoji}</span> {title}
-        </h2>
-        <p className="text-xs text-slate-400">{blurb}</p>
+    <article className="rounded-xl bg-white/5 p-3">
+      <header className="flex items-baseline justify-between gap-3">
+        <h3 className="min-w-0 truncate text-sm font-medium text-slate-100">
+          {e.title}
+          {e.recurring && (
+            <span className="ml-2 align-middle text-[10px] uppercase tracking-wide text-slate-500">
+              recurring
+            </span>
+          )}
+        </h3>
+        <span className="shrink-0 text-xs text-slate-300">{e.when}</span>
       </header>
-      <div className="-mx-3 flex flex-col">{children}</div>
-    </section>
+
+      <div className="mt-0.5 flex items-center gap-2">
+        {e.where && <p className="min-w-0 truncate text-xs text-slate-400">{e.where}</p>}
+        {e.tag && (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+              TAG_STYLES[e.tag] ?? "bg-slate-400/15 text-slate-300"
+            }`}
+          >
+            {e.tag}
+          </span>
+        )}
+      </div>
+
+      <ul className="mt-2 space-y-1 border-t border-white/5 pt-2">
+        {e.announcements.map((a, i) => (
+          <li key={`${a.group}-${a.at}-${i}`} className="flex items-baseline gap-2 text-[11px]">
+            <span aria-hidden className="text-slate-600">
+              📣
+            </span>
+            <span className="min-w-0 flex-1 truncate text-slate-400">
+              <span className="text-slate-300">{a.group}</span>
+              <span className="text-slate-600"> · by </span>
+              <span className="text-slate-300">{a.by}</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-slate-500">{shortDate(a.at)}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
   );
 }
 
@@ -68,7 +75,6 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const stats = await readGroupStats();
-  // Render/build-time stamp — reflects when the dashboard content was last generated.
   const updatedAt = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Sofia",
     day: "numeric",
@@ -76,6 +82,8 @@ export default async function Home() {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date());
+
+  const announcementCount = EVENTS.reduce((n, e) => n + e.announcements.length, 0);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
@@ -85,43 +93,30 @@ export default async function Home() {
             Bansko Dashboard <span aria-hidden>🏔️</span>
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Your nomad community hub — events & community groups.
+            What the Bansko community groups are talking about.
           </p>
         </div>
-        <div className="text-sm text-right">
+        <div className="text-right text-sm">
           <Clock />
           <p className="mt-1 text-xs text-slate-500">Last updated {updatedAt}</p>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card emoji="📅" title="Events" blurb="Meetups & what's on this week.">
-          {EVENTS.map((e) => (
-            <EventRow key={e.title} e={e} />
-          ))}
-        </Card>
-
-        <Card emoji="💬" title="WhatsApp" blurb="Community groups worth being in.">
-          {GROUPS.map((g) => (
-            <LinkRow key={g.name} item={g} />
-          ))}
-        </Card>
-      </div>
-
-      <section className="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
+      {/* Group posting stats — pushed from the VPS */}
+      <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold text-white">
               <span aria-hidden>🏆</span> Most active posters
             </h2>
             <p className="text-xs text-slate-400">
-              Top 3 per group
-              {stats ? ` · last ${stats.windowDays} days` : ""}
+              Top 3 per group{stats ? ` · last ${stats.windowDays} days` : ""}
             </p>
           </div>
           {stats && (
             <p className="text-xs text-slate-500">
-              data pushed {new Date(stats.generatedAt).toLocaleString("en-GB", { timeZone: "Europe/Sofia" })}
+              data pushed{" "}
+              {new Date(stats.generatedAt).toLocaleString("en-GB", { timeZone: "Europe/Sofia" })}
             </p>
           )}
         </header>
@@ -156,9 +151,26 @@ export default async function Home() {
         )}
       </section>
 
+      {/* Events, below the stats — each with where/when/by whom it was advertised */}
+      <section className="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
+        <header className="mb-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+            <span aria-hidden>📅</span> Events
+          </h2>
+          <p className="text-xs text-slate-400">
+            {EVENTS.length} events · {announcementCount} announcements across the groups
+          </p>
+        </header>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {EVENTS.map((e) => (
+            <EventCard key={e.id} e={e} />
+          ))}
+        </div>
+      </section>
+
       <footer className="mt-10 text-center text-xs text-slate-600">
-        Bansko Dashboard · content in{" "}
-        <code className="text-slate-500">src/data/bansko.ts</code> · stats pushed from the VPS
+        Bansko Dashboard · events in <code className="text-slate-500">src/data/bansko.ts</code> ·
+        stats pushed hourly from the VPS
       </footer>
     </main>
   );

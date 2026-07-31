@@ -7,9 +7,15 @@ export default function Clock() {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
+    // Deliberately not seeding state in the effect body: the first paint must match
+    // the server HTML (no hydration mismatch), so the clock fills in on the next
+    // tick and then updates every second.
+    const seed = setTimeout(() => setNow(new Date()), 0);
     const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(seed);
+      clearInterval(id);
+    };
   }, []);
 
   if (!now) return <span className="tabular-nums text-slate-400">—</span>;
