@@ -1,5 +1,6 @@
 import Clock from "@/components/Clock";
 import { EVENTS, GROUPS, type EventItem, type LinkItem } from "@/data/bansko";
+import { readGroupStats } from "@/lib/stats";
 
 function LinkRow({ item }: { item: LinkItem }) {
   const inner = (
@@ -62,7 +63,11 @@ function Card({
   );
 }
 
-export default function Home() {
+// Stats arrive out-of-band (VPS push), so don't cache the render.
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const stats = await readGroupStats();
   // Render/build-time stamp — reflects when the dashboard content was last generated.
   const updatedAt = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Sofia",
@@ -103,9 +108,57 @@ export default function Home() {
         </Card>
       </div>
 
+      <section className="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
+        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+              <span aria-hidden>🏆</span> Most active posters
+            </h2>
+            <p className="text-xs text-slate-400">
+              Top 3 per group
+              {stats ? ` · last ${stats.windowDays} days` : ""}
+            </p>
+          </div>
+          {stats && (
+            <p className="text-xs text-slate-500">
+              data pushed {new Date(stats.generatedAt).toLocaleString("en-GB", { timeZone: "Europe/Sofia" })}
+            </p>
+          )}
+        </header>
+
+        {!stats ? (
+          <p className="px-1 py-2 text-sm text-slate-400">
+            No stats pushed yet — the VPS posts them to{" "}
+            <code className="text-slate-500">/api/group-stats</code>.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            {stats.groups.map((g) => (
+              <div key={g.group} className="rounded-lg bg-white/5 px-3 py-2">
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <p className="truncate text-sm font-medium text-slate-100">{g.group}</p>
+                  <span className="shrink-0 text-[11px] text-slate-500">{g.total} msgs</span>
+                </div>
+                <ol className="space-y-0.5">
+                  {g.top.map((t, i) => (
+                    <li key={t.name} className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="truncate text-slate-300">
+                        <span className="mr-1 text-slate-500">{["🥇", "🥈", "🥉"][i] ?? "•"}</span>
+                        {t.name}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-emerald-400">{t.count}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <footer className="mt-10 text-center text-xs text-slate-600">
-        Bansko Dashboard · starter build · edit content in{" "}
-        <code className="text-slate-500">src/data/bansko.ts</code>
+        Bansko Dashboard · content in{" "}
+        <code className="text-slate-500">src/data/bansko.ts</code> · stats pushed from the VPS
       </footer>
     </main>
   );

@@ -39,3 +39,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.dashboard-credentials.txt
+.stats-push-token.txt
