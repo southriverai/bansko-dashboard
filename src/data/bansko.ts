@@ -41,7 +41,6 @@ export const GROUPS: LinkItem[] = [
   { name: "Bansko Cold Plunge 🥶" },
   { name: "Bansko Lindy Hop 🕺" },
   { name: "Padel Bansko 🎾" },
-  { name: "Sunday Bachateros (dance socials)" },
   { name: "Central BG Paragliding Pilots 🪂" },
 ];
 
