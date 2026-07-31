@@ -80,7 +80,7 @@ export default function Home() {
             Bansko Dashboard <span aria-hidden>🏔️</span>
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Your nomad community hub — events & the WhatsApp groups.
+            Your nomad community hub — events & community groups.
           </p>
         </div>
         <div className="text-sm text-right">
