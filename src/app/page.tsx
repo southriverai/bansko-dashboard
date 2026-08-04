@@ -25,7 +25,7 @@ function GroupCard({ g }: { g: GroupStat }) {
   );
 }
 
-/** A labelled half of the sport / non-sport split. Renders nothing when empty. */
+/** One labelled bucket of groups. Renders nothing when empty. */
 function GroupBucket({ title, groups }: { title: string; groups: GroupStat[] }) {
   if (groups.length === 0) return null;
   return (
@@ -42,20 +42,22 @@ function GroupBucket({ title, groups }: { title: string; groups: GroupStat[] }) 
   );
 }
 
+export const metadata = { title: "Bansko Activity" };
+
 // Stats arrive out-of-band (VPS push), so don't cache the render.
 export const dynamic = "force-dynamic";
 
-export default async function Dashboard() {
+export default async function Activity() {
   const stats = await readGroupStats();
 
   const groups = stats?.groups ?? [];
+  const socialGroups = groups.filter((g) => groupCategory(g.group) === "social");
   const sportGroups = groups.filter((g) => groupCategory(g.group) === "sport");
   const privateGroups = groups.filter((g) => groupCategory(g.group) === "private");
-  const otherGroups = groups.filter((g) => groupCategory(g.group) === "other");
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Bansko Dashboard 🏔️" active="/" />
+      <SiteHeader title="Bansko Activity 🏔️" active="/" />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -82,9 +84,9 @@ export default async function Dashboard() {
           </p>
         ) : (
           <div className="space-y-5">
+            <GroupBucket title="💬 Social" groups={socialGroups} />
             <GroupBucket title="🏃 Sports, dance & yoga" groups={sportGroups} />
             <GroupBucket title="🔒 Private" groups={privateGroups} />
-            <GroupBucket title="💬 Everything else" groups={otherGroups} />
           </div>
         )}
       </section>

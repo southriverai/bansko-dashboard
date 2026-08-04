@@ -4,7 +4,7 @@ import Clock from "@/components/Clock";
 
 /** Top-level tabs: group activity, what's on, and who rents places out. */
 const TABS = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Activity" },
   { href: "/events", label: "Events" },
   { href: "/rentals", label: "Rentals" },
 ];

@@ -10,7 +10,7 @@
  * in is decided by matching the name. Word boundaries keep short words from matching
  * inside longer ones ("run" in "brunch").
  */
-export type GroupCategory = "sport" | "private" | "other";
+export type GroupCategory = "sport" | "private" | "social";
 
 /**
  * Venue and members' groups rather than open community ones — a coworking space, a
@@ -70,7 +70,7 @@ export function groupCategory(name: string): GroupCategory {
   const n = name.toLowerCase();
   if (PRIVATE_PATTERNS.some((re) => re.test(n))) return "private";
   if (SPORT_PATTERNS.some((re) => re.test(n))) return "sport";
-  return "other";
+  return "social";
 }
 
 /** Where an event was advertised. This is the provenance of an event: every
