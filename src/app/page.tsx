@@ -1,6 +1,25 @@
+import Link from "next/link";
+
 import Clock from "@/components/Clock";
-import { EVENTS, type BanskoEvent } from "@/data/bansko";
-import { readGroupStats } from "@/lib/stats";
+import { isSportGroup, type BanskoEvent } from "@/data/bansko";
+import {
+  dayNumber,
+  eventDay,
+  formatDay,
+  monthGrid,
+  monthKey,
+  monthLabel,
+  occursOn,
+  parseMonth,
+  readEvents,
+  shiftMonth,
+  splitByDate,
+  today,
+  weekdayLabel,
+  type DayKey,
+  type Month,
+} from "@/lib/events";
+import { readGroupStats, type GroupStat } from "@/lib/stats";
 
 const TAG_STYLES: Record<string, string> = {
   dance: "bg-fuchsia-500/15 text-fuchsia-300",
@@ -31,7 +50,7 @@ function EventCard({ e }: { e: BanskoEvent }) {
           {e.title}
           {e.recurring && (
             <span className="ml-2 align-middle text-[10px] uppercase tracking-wide text-slate-500">
-              recurring
+              {e.weekdays?.length ? weekdayLabel(e.weekdays) : "recurring"}
             </span>
           )}
         </h3>
@@ -70,11 +89,217 @@ function EventCard({ e }: { e: BanskoEvent }) {
   );
 }
 
+function ViewTab({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`rounded px-2 py-1 ${
+        active ? "bg-white/10 text-slate-100" : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+/** The chronological view: dated events oldest-first, then the ones with no date. */
+function ListView({ events }: { events: BanskoEvent[] }) {
+  const { dated, undated } = splitByDate(events);
+  const now = today();
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          Dated <span className="text-slate-600">· {dated.length}</span>
+        </h3>
+        <div className="space-y-3">
+          {dated.map((e) => {
+            const day = eventDay(e);
+            return (
+              <div key={e.id} className="flex gap-3">
+                <div
+                  className={`w-24 shrink-0 pt-3 text-xs tabular-nums ${
+                    day && day < now ? "text-slate-600" : "text-slate-300"
+                  }`}
+                >
+                  {day ? formatDay(day) : ""}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <EventCard e={e} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {undated.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            No date given <span className="text-slate-600">· {undated.length}</span>
+          </h3>
+          <p className="mb-2 text-xs text-slate-500">
+            The announcement gave a time but not a day — ask in the group.
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {undated.map((e) => (
+              <EventCard key={e.id} e={e} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A month grid. Events with no placeable date are listed underneath it. */
+function CalendarView({ events, month }: { events: BanskoEvent[]; month: Month }) {
+  const cells = monthGrid(month);
+  const now = today();
+  const placed = new Set<string>();
+
+  const byDay = new Map<DayKey, BanskoEvent[]>();
+  for (const day of cells) {
+    if (!day) continue;
+    const onDay = events.filter((e) => occursOn(e, day));
+    onDay.forEach((e) => placed.add(e.id));
+    if (onDay.length > 0) byDay.set(day, onDay);
+  }
+  const unplaced = events.filter((e) => !placed.has(e.id));
+
+  return (
+    <div className="space-y-4">
+      <nav className="flex items-center justify-between gap-2 text-sm">
+        <Link
+          href={`/?view=calendar&month=${monthKey(shiftMonth(month, -1))}`}
+          className="rounded px-2 py-1 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+        >
+          ← {monthLabel(shiftMonth(month, -1))}
+        </Link>
+        <span className="font-medium text-slate-100">{monthLabel(month)}</span>
+        <Link
+          href={`/?view=calendar&month=${monthKey(shiftMonth(month, 1))}`}
+          className="rounded px-2 py-1 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+        >
+          {monthLabel(shiftMonth(month, 1))} →
+        </Link>
+      </nav>
+
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg bg-white/10 text-[11px]">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+          <div key={d} className="bg-slate-900 px-2 py-1 text-center text-slate-500">
+            {d}
+          </div>
+        ))}
+        {cells.map((day, i) => (
+          <div
+            key={day ?? `blank-${i}`}
+            className={`min-h-20 bg-slate-900/80 p-1 ${day === now ? "ring-1 ring-inset ring-emerald-500/40" : ""}`}
+          >
+            {day && (
+              <>
+                <div
+                  className={`mb-1 text-right tabular-nums ${
+                    day === now ? "text-emerald-400" : "text-slate-600"
+                  }`}
+                >
+                  {dayNumber(day)}
+                </div>
+                <ul className="space-y-0.5">
+                  {(byDay.get(day) ?? []).map((e) => (
+                    <li
+                      key={e.id}
+                      title={`${e.title}${e.where ? ` · ${e.where}` : ""} · ${e.when}`}
+                      className={`truncate rounded px-1 py-0.5 ${
+                        TAG_STYLES[e.tag ?? ""] ?? "bg-slate-400/15 text-slate-300"
+                      }`}
+                    >
+                      {e.title}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {unplaced.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Not on the calendar <span className="text-slate-600">· {unplaced.length}</span>
+          </h3>
+          <p className="mb-2 text-xs text-slate-500">
+            These fall outside {monthLabel(month)}, or the announcement never named a day.
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {unplaced.map((e) => (
+              <EventCard key={e.id} e={e} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One group's top posters. */
+function GroupCard({ g }: { g: GroupStat }) {
+  return (
+    <div className="rounded-lg bg-white/5 px-3 py-2">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <p className="truncate text-sm font-medium text-slate-100">{g.group}</p>
+        <span className="shrink-0 text-[11px] text-slate-500">{g.total} msgs</span>
+      </div>
+      <ol className="space-y-0.5">
+        {g.top.map((t, i) => (
+          <li key={t.name} className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="truncate text-slate-300">
+              <span className="mr-1 text-slate-500">{["🥇", "🥈", "🥉"][i] ?? "•"}</span>
+              {t.name}
+            </span>
+            <span className="shrink-0 tabular-nums text-emerald-400">{t.count}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** A labelled half of the sport / non-sport split. Renders nothing when empty. */
+function GroupBucket({ title, groups }: { title: string; groups: GroupStat[] }) {
+  if (groups.length === 0) return null;
+  return (
+    <div>
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        {title} <span className="text-slate-600">· {groups.length}</span>
+      </h3>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map((g) => (
+          <GroupCard key={g.group} g={g} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Stats arrive out-of-band (VPS push), so don't cache the render.
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const stats = await readGroupStats();
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; month?: string }>;
+}) {
+  const { view: rawView, month: rawMonth } = await searchParams;
+  const view = rawView === "calendar" ? "calendar" : "list";
+  const month = parseMonth(rawMonth);
+
+  const [stats, feed] = await Promise.all([readGroupStats(), readEvents()]);
+  const events = feed.events;
+
   const updatedAt = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Sofia",
     day: "numeric",
@@ -83,7 +308,10 @@ export default async function Home() {
     minute: "2-digit",
   }).format(new Date());
 
-  const announcementCount = EVENTS.reduce((n, e) => n + e.announcements.length, 0);
+  const announcementCount = events.reduce((n, e) => n + e.announcements.length, 0);
+
+  const sportGroups = stats?.groups.filter((g) => isSportGroup(g.group)) ?? [];
+  const otherGroups = stats?.groups.filter((g) => !isSportGroup(g.group)) ?? [];
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
@@ -102,8 +330,38 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* Group posting stats — pushed from the VPS */}
+      {/* Events lead the page — each with where/when/by whom it was advertised */}
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
+        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+              <span aria-hidden>📅</span> Events
+            </h2>
+            <p className="text-xs text-slate-400">
+              {events.length} events · {announcementCount} announcements across the groups
+              {feed.source === "static" && " · hand-curated fallback, nothing pushed yet"}
+            </p>
+          </div>
+          {/* Plain links, not a client toggle: the page is server-rendered anyway. */}
+          <div className="flex gap-1 text-xs">
+            <ViewTab href="/?view=list" label="List" active={view === "list"} />
+            <ViewTab
+              href={`/?view=calendar&month=${monthKey(month)}`}
+              label="Calendar"
+              active={view === "calendar"}
+            />
+          </div>
+        </header>
+
+        {view === "calendar" ? (
+          <CalendarView events={events} month={month} />
+        ) : (
+          <ListView events={events} />
+        )}
+      </section>
+
+      {/* Group posting stats, last on the page — pushed from the VPS */}
+      <section className="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold text-white">
@@ -127,50 +385,18 @@ export default async function Home() {
             <code className="text-slate-500">/api/group-stats</code>.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-            {stats.groups.map((g) => (
-              <div key={g.group} className="rounded-lg bg-white/5 px-3 py-2">
-                <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-slate-100">{g.group}</p>
-                  <span className="shrink-0 text-[11px] text-slate-500">{g.total} msgs</span>
-                </div>
-                <ol className="space-y-0.5">
-                  {g.top.map((t, i) => (
-                    <li key={t.name} className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="truncate text-slate-300">
-                        <span className="mr-1 text-slate-500">{["🥇", "🥈", "🥉"][i] ?? "•"}</span>
-                        {t.name}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-emerald-400">{t.count}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ))}
+          <div className="space-y-5">
+            <GroupBucket title="🏃 Sports" groups={sportGroups} />
+            <GroupBucket title="💬 Everything else" groups={otherGroups} />
           </div>
         )}
       </section>
 
-      {/* Events, below the stats — each with where/when/by whom it was advertised */}
-      <section className="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
-        <header className="mb-3">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-            <span aria-hidden>📅</span> Events
-          </h2>
-          <p className="text-xs text-slate-400">
-            {EVENTS.length} events · {announcementCount} announcements across the groups
-          </p>
-        </header>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {EVENTS.map((e) => (
-            <EventCard key={e.id} e={e} />
-          ))}
-        </div>
-      </section>
-
       <footer className="mt-10 text-center text-xs text-slate-600">
-        Bansko Dashboard · events in <code className="text-slate-500">src/data/bansko.ts</code> ·
-        stats pushed hourly from the VPS
+        Bansko Dashboard ·{" "}
+        {feed.source === "push"
+          ? "events and stats pushed hourly from the VPS"
+          : "stats pushed hourly from the VPS; events from src/data/bansko.ts"}
       </footer>
     </main>
   );

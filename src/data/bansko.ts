@@ -5,6 +5,41 @@
 // What's left is the event model below, plus the group posting stats which are
 // pushed from the VPS at runtime (see src/lib/stats.ts).
 
+/**
+ * Group names arrive free-form from the stats feed, so "is this a sports group?"
+ * is decided by matching the name. Word boundaries keep short words from matching
+ * inside longer ones ("run" in "brunch"). Yoga/dance/plunge groups stay on the
+ * non-sport side — they're wellness and movement, matching the event tags below.
+ */
+const SPORT_PATTERNS: RegExp[] = [
+  /\bpadel\b/,
+  /\bvolleyball\b/,
+  /\btennis\b/,
+  /\b(foot|basket|hand)ball\b/,
+  /\brun(ning|ners)?\b/,
+  /\bcycl/,
+  /\bbike\b/,
+  /\bmtb\b/,
+  /\bclimb/,
+  /\bboulder/,
+  /\bski(ing|ers)?\b/,
+  /\bsnowboard/,
+  /\bhik(e|es|ing)\b/,
+  /\btrek/,
+  /\bparaglid/,
+  /\bswim/,
+  /\bcrossfit\b/,
+  /\bgym\b/,
+  /\bfitness\b/,
+  /\bgolf\b/,
+];
+
+/** True for groups organised around a physical sport (incl. hiking & paragliding). */
+export function isSportGroup(name: string): boolean {
+  const n = name.toLowerCase();
+  return SPORT_PATTERNS.some((re) => re.test(n));
+}
+
 /** Where an event was advertised. This is the provenance of an event: every
  *  announcement records the group, who posted it, and when. */
 export type EventAnnouncement = {
@@ -25,6 +60,9 @@ export type EventTag =
   | "music"
   | "work";
 
+/** 0 = Sunday … 6 = Saturday, matching `Date.prototype.getDay()`. */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
 /** A community event, with the announcements that advertised it. */
 export type BanskoEvent = {
   /** Stable slug, used as a React key and for future dedupe/merging. */
@@ -38,6 +76,14 @@ export type BanskoEvent = {
   tag?: EventTag;
   /** True for standing/weekly things rather than one-offs. */
   recurring?: boolean;
+  /**
+   * Days of the week the event lands on, when the announcement named one
+   * ("Thu & Sat", "Saturday · 18:00"). This is what makes an event placeable on
+   * the calendar without a concrete `startsAt` — see src/lib/events.ts for how a
+   * weekday is turned into an actual date. Omit when the announcement only says
+   * "Weekly" or gives a time.
+   */
+  weekdays?: Weekday[];
   /** Provenance — which groups advertised it, by whom, when. Newest first. */
   announcements: EventAnnouncement[];
 };
@@ -82,6 +128,7 @@ export const EVENTS: BanskoEvent[] = [
     when: "Saturday · 18:00",
     where: "Hanumam Yoga Studio",
     tag: "dance",
+    weekdays: [6],
     announcements: [
       { group: "Bansko Social 2026", by: "Tanjuscha", at: "2026-07-30T10:02:00+03:00" },
     ],
@@ -102,6 +149,7 @@ export const EVENTS: BanskoEvent[] = [
     when: "From Sunday · ~08:00",
     where: "Via Tevno Ezero",
     tag: "outdoors",
+    weekdays: [0],
     announcements: [
       { group: "Bansko Hikes and Hiking", by: "Shachar Chasman", at: "2026-07-30T08:58:00+03:00" },
       { group: "Good Morning Bansko Chat", by: "Cla", at: "2026-07-29T15:06:00+03:00" },
@@ -124,6 +172,7 @@ export const EVENTS: BanskoEvent[] = [
     when: "Thu & Sat",
     tag: "sport",
     recurring: true,
+    weekdays: [4, 6],
     announcements: [
       { group: "Bansko Volleyball 🏐", by: "Oscar Gueye", at: "2026-07-30T17:14:00+03:00" },
     ],
