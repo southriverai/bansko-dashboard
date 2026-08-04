@@ -1,23 +1,26 @@
 import { get } from "@vercel/blob";
 
 import { EVENTS, type BanskoEvent, type Weekday } from "@/data/bansko";
+import { hasDatabase, readEventsFromDb } from "@/lib/db";
 
 /**
- * Events come from one of two places:
+ * Events come from one of three places, in order of preference:
  *
- *  - a private blob the VPS pushes to (see src/app/api/events/route.ts), where an
- *    LLM extracts them from the WhatsApp message database, or
- *  - the hand-curated EVENTS array in src/data/bansko.ts, as a fallback so the
- *    page is never empty.
+ *  - the database (db/migrations), where events reference the stored messages that
+ *    announced them,
+ *  - a private blob the VPS pushes to (see src/app/api/events/route.ts), which is
+ *    finished JSON with the provenance transcribed rather than referenced, or
+ *  - the hand-curated EVENTS array in src/data/bansko.ts, so the page is never
+ *    empty.
  *
- * Same arrangement as the group stats: the message DB is Tailscale-only and the
- * content is private, so nothing is pulled from here — it's pushed in.
+ * The fallbacks are why the database can be provisioned without a flag day: an
+ * unset DATABASE_URL just means the previous path is still in use.
  */
 export type EventFeed = {
   events: BanskoEvent[];
   /** Where the events came from — surfaced in the UI so the page is honest. */
-  source: "push" | "static";
-  /** When the push was generated; null for the static fallback. */
+  source: "db" | "push" | "static";
+  /** When the push was generated; null for the database and static paths. */
   generatedAt: string | null;
 };
 
@@ -25,6 +28,18 @@ export const EVENTS_BLOB_PATH = "events.json";
 
 export async function readEvents(): Promise<EventFeed> {
   const fallback: EventFeed = { events: EVENTS, source: "static", generatedAt: null };
+
+  if (hasDatabase()) {
+    try {
+      const events = await readEventsFromDb();
+      if (events.length > 0) return { events, source: "db", generatedAt: null };
+    } catch (err) {
+      // A database that's configured but unreachable shouldn't take the page down;
+      // fall through to the blob. Logged so it isn't silent.
+      console.error("readEventsFromDb failed, falling back to blob", err);
+    }
+  }
+
   if (!process.env.BLOB_READ_WRITE_TOKEN) return fallback;
   try {
     const result = await get(EVENTS_BLOB_PATH, { access: "private" });
