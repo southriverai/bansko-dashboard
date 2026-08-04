@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import SiteHeader from "@/components/SiteHeader";
-import { isSportGroup, type BanskoEvent } from "@/data/bansko";
+import { groupCategory, type BanskoEvent } from "@/data/bansko";
 import {
   dayNumber,
   eventDay,
@@ -317,8 +317,10 @@ export default async function Home({
 
   const announcementCount = events.reduce((n, e) => n + e.announcements.length, 0);
 
-  const sportGroups = stats?.groups.filter((g) => isSportGroup(g.group)) ?? [];
-  const otherGroups = stats?.groups.filter((g) => !isSportGroup(g.group)) ?? [];
+  const groups = stats?.groups ?? [];
+  const sportGroups = groups.filter((g) => groupCategory(g.group) === "sport");
+  const privateGroups = groups.filter((g) => groupCategory(g.group) === "private");
+  const otherGroups = groups.filter((g) => groupCategory(g.group) === "other");
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
@@ -385,7 +387,8 @@ export default async function Home({
           </p>
         ) : (
           <div className="space-y-5">
-            <GroupBucket title="🏃 Sports" groups={sportGroups} />
+            <GroupBucket title="🏃 Sports, dance & yoga" groups={sportGroups} />
+            <GroupBucket title="🔒 Private" groups={privateGroups} />
             <GroupBucket title="💬 Everything else" groups={otherGroups} />
           </div>
         )}
