@@ -13,3 +13,15 @@ Everything goes straight to `main`. No dev branch, no PR to wait on: merge and
 push as soon as it builds, even though `main` deploys to production
 (bansko-dashboard.vercel.app). Work done in a worktree branch gets merged into
 `main` at the end of the task rather than left sitting there.
+
+# There is no dev environment
+
+Not a dev branch, not a staging site, and nothing on Vercel either: **Production
+is the only Vercel environment**. Don't set env vars on Preview or Development,
+don't suggest verifying on a staging URL, and don't propose a promote-from-preview
+step — none of that exists here.
+
+Verification is: run it locally, then merge to `main` and check the production
+URL. `NEXT_PUBLIC_*` values are inlined at build time, so changing one in the
+Vercel project needs a redeploy (`vercel redeploy <latest-prod-url> --scope
+jaap-oosterbroeks-projects`) before it shows up.
