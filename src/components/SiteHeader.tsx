@@ -32,20 +32,30 @@ export default function SiteHeader({
   title,
   blurb,
   active,
+  updatedAt,
 }: {
   title: string;
   /** Optional — omit it on pages that carry their own explanation, or none. */
   blurb?: string;
   /** Which tab's href is the current page. */
   active: string;
+  /**
+   * When the data on this page was produced (ISO), from the feed itself. This used
+   * to be the render time, which stopped meaning anything once reads are cached for
+   * an hour — a cached page would have claimed to be "updated" whenever it happened
+   * to be re-rendered. Null when the source carries no timestamp.
+   */
+  updatedAt?: string | null;
 }) {
-  const updatedAt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Sofia",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date());
+  const updatedLabel = updatedAt
+    ? new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Sofia",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(updatedAt))
+    : null;
 
   const feedback = feedbackHref();
 
@@ -99,7 +109,9 @@ export default function SiteHeader({
         </div>
         <div className="text-right text-sm">
           <Clock />
-          <p className="mt-1 text-xs text-slate-500">Last updated {updatedAt}</p>
+          {updatedLabel && (
+            <p className="mt-1 text-xs text-slate-500">Last updated {updatedLabel}</p>
+          )}
         </div>
       </div>
     </header>

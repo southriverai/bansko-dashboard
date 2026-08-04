@@ -1,5 +1,8 @@
 import { put } from "@vercel/blob";
+import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
+
+import { STATS_TAG } from "@/lib/stats";
 
 /**
  * Ingest endpoint for WhatsApp group stats pushed from the VPS.
@@ -13,7 +16,6 @@ import { NextResponse, type NextRequest } from "next/server";
  * dashboard's Basic Auth in middleware.ts so the VPS doesn't need those creds.
  * Fails closed if the token isn't configured.
  */
-export const runtime = "nodejs";
 
 export const STATS_BLOB_PATH = "group-stats.json";
 
@@ -64,6 +66,10 @@ export async function POST(req: NextRequest) {
     allowOverwrite: true,
     addRandomSuffix: false,
   });
+
+  // The page caches reads for an hour; this push is the hour, so bust the tag
+  // rather than let the new numbers sit behind a stale entry.
+  revalidateTag(STATS_TAG, "max");
 
   return NextResponse.json({ ok: true, groups: body.groups.length, generatedAt: body.generatedAt });
 }

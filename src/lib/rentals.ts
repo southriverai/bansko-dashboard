@@ -1,4 +1,5 @@
 import { get } from "@vercel/blob";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { RENTALS, type RentalProvider } from "@/data/rentals";
 
@@ -14,6 +15,9 @@ export type RentalFeed = {
 };
 
 export const RENTALS_BLOB_PATH = "rentals.json";
+
+/** Cache tag the push endpoint revalidates, so a push shows up immediately. */
+export const RENTALS_TAG = "rentals";
 
 export type RentalPayload = { generatedAt: string; providers: RentalProvider[] };
 
@@ -31,6 +35,10 @@ export async function readRentalsBlob(): Promise<RentalPayload | null> {
 }
 
 export async function readRentals(): Promise<RentalFeed> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(RENTALS_TAG);
+
   const blob = await readRentalsBlob();
   if (!blob || blob.providers.length === 0) {
     return { providers: RENTALS, source: "static", generatedAt: null };

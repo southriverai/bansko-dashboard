@@ -1,4 +1,5 @@
 import { get } from "@vercel/blob";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { EVENTS, type BanskoEvent, type Weekday } from "@/data/bansko";
 import { hasDatabase, readEventsFromDb } from "@/lib/db";
@@ -26,7 +27,14 @@ export type EventFeed = {
 
 export const EVENTS_BLOB_PATH = "events.json";
 
+/** Cache tag the push endpoints revalidate, so a push shows up immediately. */
+export const EVENTS_TAG = "events";
+
 export async function readEvents(): Promise<EventFeed> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(EVENTS_TAG);
+
   const fallback: EventFeed = { events: EVENTS, source: "static", generatedAt: null };
 
   if (hasDatabase()) {

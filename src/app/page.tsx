@@ -44,8 +44,6 @@ function GroupBucket({ title, groups }: { title: string; groups: GroupStat[] }) 
 
 export const metadata = { title: "Bansko Activity" };
 
-// Stats arrive out-of-band (VPS push), so don't cache the render.
-export const dynamic = "force-dynamic";
 
 export default async function Activity() {
   const stats = await readGroupStats();
@@ -57,7 +55,7 @@ export default async function Activity() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Bansko Activity 🏔️" active="/" />
+      <SiteHeader title="Bansko Activity 🏔️" active="/" updatedAt={stats?.generatedAt} />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">

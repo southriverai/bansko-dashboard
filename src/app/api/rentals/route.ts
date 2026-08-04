@@ -1,7 +1,8 @@
 import { put } from "@vercel/blob";
+import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { RENTALS_BLOB_PATH, mergeProviders, readRentalsBlob } from "@/lib/rentals";
+import { RENTALS_BLOB_PATH, RENTALS_TAG, mergeProviders, readRentalsBlob } from "@/lib/rentals";
 
 /**
  * Ingest endpoint for rental providers extracted on the VPS.
@@ -13,7 +14,6 @@ import { RENTALS_BLOB_PATH, mergeProviders, readRentalsBlob } from "@/lib/rental
  *
  * Auth: a bearer token (RENTALS_PUSH_TOKEN). Fails closed if it isn't configured.
  */
-export const runtime = "nodejs";
 
 function isMention(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
     allowOverwrite: true,
     addRandomSuffix: false,
   });
+
+  revalidateTag(RENTALS_TAG, "max");
 
   return NextResponse.json({
     ok: true,

@@ -1,6 +1,8 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { hasDatabase, insertMessages, upsertChannels, type MessageInput } from "@/lib/db";
+import { EVENTS_TAG } from "@/lib/events";
 
 /**
  * Ingest endpoint for filtered messages pushed from the VPS.
@@ -15,7 +17,6 @@ import { hasDatabase, insertMessages, upsertChannels, type MessageInput } from "
  *
  * Auth: a bearer token (MESSAGES_PUSH_TOKEN). Fails closed if it isn't configured.
  */
-export const runtime = "nodejs";
 
 /** Bound the payload so one push can't run for minutes or blow the body limit. */
 const MAX_MESSAGES = 5000;
@@ -97,6 +98,10 @@ export async function POST(req: NextRequest) {
     ...new Set(body.messages.map((m) => m.channelJid).filter((jid) => !channelIds.has(jid))),
   ];
   const inserted = await insertMessages(body.messages, channelIds);
+
+  // Events are read from these rows (channel names and sender names are joined in),
+  // so new messages can change what the events page shows.
+  revalidateTag(EVENTS_TAG, "max");
 
   return NextResponse.json({
     ok: true,

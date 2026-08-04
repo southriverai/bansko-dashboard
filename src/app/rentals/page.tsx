@@ -6,8 +6,6 @@ export const metadata = {
   title: "Yet Another Bansko Rental Dashboard",
 };
 
-// The list is pushed out-of-band, so don't cache the render.
-export const dynamic = "force-dynamic";
 
 function shortDate(iso: string) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -92,7 +90,11 @@ export default async function Rentals() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Yet Another Bansko Rental Dashboard 🏠" active="/rentals" />
+      <SiteHeader
+        title="Yet Another Bansko Rental Dashboard 🏠"
+        active="/rentals"
+        updatedAt={feed.generatedAt}
+      />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">

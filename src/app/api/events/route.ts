@@ -1,7 +1,8 @@
 import { put } from "@vercel/blob";
+import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { EVENTS_BLOB_PATH } from "@/lib/events";
+import { EVENTS_BLOB_PATH, EVENTS_TAG } from "@/lib/events";
 
 /**
  * Ingest endpoint for events extracted from the WhatsApp groups on the VPS.
@@ -15,7 +16,6 @@ import { EVENTS_BLOB_PATH } from "@/lib/events";
  *
  * Auth: a bearer token (EVENTS_PUSH_TOKEN). Fails closed if it isn't configured.
  */
-export const runtime = "nodejs";
 
 type Announcement = { group: string; by: string; at: string };
 
@@ -77,6 +77,8 @@ export async function POST(req: NextRequest) {
     allowOverwrite: true,
     addRandomSuffix: false,
   });
+
+  revalidateTag(EVENTS_TAG, "max");
 
   return NextResponse.json({ ok: true, events: body.events.length, generatedAt: body.generatedAt });
 }

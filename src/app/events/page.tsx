@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import SiteHeader from "@/components/SiteHeader";
 import type { BanskoEvent } from "@/data/bansko";
@@ -18,13 +19,12 @@ import {
   today,
   weekdayLabel,
   type DayKey,
+  type EventFeed,
   type Month,
 } from "@/lib/events";
 
 export const metadata = { title: "Bansko Events" };
 
-// Events arrive out-of-band (VPS push), so don't cache the render.
-export const dynamic = "force-dynamic";
 
 const TAG_STYLES: Record<string, string> = {
   dance: "bg-fuchsia-500/15 text-fuchsia-300",
@@ -262,52 +262,77 @@ function CalendarView({ events, month }: { events: BanskoEvent[]; month: Month }
   );
 }
 
-export default async function Events({
+/**
+ * Everything request-shaped lives here: the view and month come from searchParams,
+ * and "is this event still upcoming?" depends on the current time. Cache Components
+ * treats both as uncached data, so they belong inside the Suspense boundary — which
+ * is also the honest split, since the cached shell genuinely can't know either.
+ */
+async function EventsPanel({
   searchParams,
+  feed,
 }: {
   searchParams: Promise<{ view?: string; month?: string }>;
+  feed: EventFeed;
 }) {
   const { view: rawView, month: rawMonth } = await searchParams;
   const view = rawView === "calendar" ? "calendar" : "list";
   const month = parseMonth(rawMonth);
 
-  const feed = await readEvents();
   // Only what's still ahead of us. The count of what got dropped is shown, so an
   // empty page reads as "the feed is stale" rather than "the page is broken".
   const { upcoming: events, past } = splitUpcoming(feed.events);
   const announcementCount = events.reduce((n, e) => n + e.announcements.length, 0);
 
   return (
+    <>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-xs text-slate-400">
+          {events.length} upcoming · {announcementCount} announcements
+          {past.length > 0 && ` · ${past.length} past hidden`}
+        </p>
+        {/* Plain links, not a client toggle: the page is server-rendered anyway. */}
+        <div className="flex gap-1 text-xs">
+          <ViewTab href="/events?view=list" label="List" active={view === "list"} />
+          <ViewTab
+            href={`/events?view=calendar&month=${monthKey(month)}`}
+            label="Calendar"
+            active={view === "calendar"}
+          />
+        </div>
+      </div>
+
+      {view === "calendar" ? (
+        <CalendarView events={events} month={month} />
+      ) : (
+        <ListView events={events} />
+      )}
+    </>
+  );
+}
+
+export default async function Events({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; month?: string }>;
+}) {
+  // Cached for an hour (see src/lib/events.ts), so this doesn't block the shell.
+  const feed = await readEvents();
+
+  return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Bansko Events 📅" active="/events" />
+      <SiteHeader title="Bansko Events 📅" active="/events" updatedAt={feed.generatedAt} />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
-        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-              <span aria-hidden>🗓️</span> What’s on
-            </h2>
-            <p className="text-xs text-slate-400">
-              {events.length} upcoming · {announcementCount} announcements
-              {past.length > 0 && ` · ${past.length} past hidden`}
-            </p>
-          </div>
-          {/* Plain links, not a client toggle: the page is server-rendered anyway. */}
-          <div className="flex gap-1 text-xs">
-            <ViewTab href="/events?view=list" label="List" active={view === "list"} />
-            <ViewTab
-              href={`/events?view=calendar&month=${monthKey(month)}`}
-              label="Calendar"
-              active={view === "calendar"}
-            />
-          </div>
+        <header className="mb-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+            <span aria-hidden>🗓️</span> What’s on
+          </h2>
         </header>
 
-        {view === "calendar" ? (
-          <CalendarView events={events} month={month} />
-        ) : (
-          <ListView events={events} />
-        )}
+        <Suspense fallback={<p className="px-1 py-2 text-sm text-slate-500">Loading events…</p>}>
+          <EventsPanel searchParams={searchParams} feed={feed} />
+        </Suspense>
       </section>
     </main>
   );
