@@ -68,14 +68,13 @@ function ProviderCard({ p }: { p: RentalProvider }) {
   );
 }
 
-function Bucket({ title, blurb, providers }: { title: string; blurb: string; providers: RentalProvider[] }) {
+function Bucket({ title, providers }: { title: string; providers: RentalProvider[] }) {
   if (providers.length === 0) return null;
   return (
     <div>
-      <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
         {title} <span className="text-slate-600">· {providers.length}</span>
       </h3>
-      <p className="mb-2 text-xs text-slate-500">{blurb}</p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {providers.map((p) => (
           <ProviderCard key={p.id} p={p} />
@@ -93,11 +92,7 @@ export default async function Rentals() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader
-        title="Yet Another Bansko Rental Dashboard 🏠"
-        blurb="Everyone who has ever offered a place in the Bansko groups, or been suggested as worth asking."
-        active="/rentals"
-      />
+      <SiteHeader title="Yet Another Bansko Rental Dashboard 🏠" active="/rentals" />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -106,8 +101,7 @@ export default async function Rentals() {
               <span aria-hidden>🔑</span> Rental providers
             </h2>
             <p className="text-xs text-slate-400">
-              {feed.providers.length} providers · {mentionCount} mentions · nothing ever drops off
-              the list
+              {feed.providers.length} providers · {mentionCount} mentions
             </p>
           </div>
           {feed.generatedAt && (
@@ -118,38 +112,13 @@ export default async function Rentals() {
           )}
         </header>
 
-        {feed.providers.length === 0 ? (
-          <div className="px-1 py-2 text-sm text-slate-400">
-            <p>
-              Nothing collected yet — the VPS posts providers to{" "}
-              <code className="text-slate-500">/api/rentals</code>, which merges each push into
-              the list rather than replacing it.
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              There is no hand-curated seed here on purpose: the other panels were transcribed
-              from real messages, and inventing names of people who supposedly let flats would
-              put made-up claims about real people on a public page.
-            </p>
-          </div>
-        ) : (
+        {feed.providers.length > 0 && (
           <div className="space-y-5">
-            <Bucket
-              title="🏠 Offered a place themselves"
-              blurb="They posted the offer, so they're the one to ask."
-              providers={offered}
-            />
-            <Bucket
-              title="👍 Suggested by someone else"
-              blurb="Hearsay — somebody vouched for them, they never posted themselves."
-              providers={suggested}
-            />
+            <Bucket title="🏠 Offered a place themselves" providers={offered} />
+            <Bucket title="👍 Suggested by someone else" providers={suggested} />
           </div>
         )}
       </section>
-
-      <footer className="mt-10 text-center text-xs text-slate-600">
-        Names and groups only — no phone numbers or links. Ask in the group the mention came from.
-      </footer>
     </main>
   );
 }

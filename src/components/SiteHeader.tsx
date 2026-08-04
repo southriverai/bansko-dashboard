@@ -2,9 +2,10 @@ import Link from "next/link";
 
 import Clock from "@/components/Clock";
 
-/** Top-level tabs. Two pages so far: the dashboard and the rental list. */
+/** Top-level tabs: group activity, what's on, and who rents places out. */
 const TABS = [
   { href: "/", label: "Dashboard" },
+  { href: "/events", label: "Events" },
   { href: "/rentals", label: "Rentals" },
 ];
 
@@ -33,7 +34,8 @@ export default function SiteHeader({
   active,
 }: {
   title: string;
-  blurb: string;
+  /** Optional — omit it on pages that carry their own explanation, or none. */
+  blurb?: string;
   /** Which tab's href is the current page. */
   active: string;
 }) {
