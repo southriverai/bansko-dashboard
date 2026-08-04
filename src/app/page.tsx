@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import Clock from "@/components/Clock";
+import SiteHeader from "@/components/SiteHeader";
 import { isSportGroup, type BanskoEvent } from "@/data/bansko";
 import {
   dayNumber,
@@ -14,6 +14,7 @@ import {
   readEvents,
   shiftMonth,
   splitByDate,
+  splitUpcoming,
   today,
   weekdayLabel,
   type DayKey,
@@ -108,32 +109,43 @@ function ListView({ events }: { events: BanskoEvent[] }) {
   const { dated, undated } = splitByDate(events);
   const now = today();
 
+  if (events.length === 0) {
+    return (
+      <p className="px-1 py-2 text-sm text-slate-400">
+        Nothing upcoming. Everything in the feed has already happened — the events
+        panel needs a fresh push.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <div>
-        <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-          Dated <span className="text-slate-600">· {dated.length}</span>
-        </h3>
-        <div className="space-y-3">
-          {dated.map((e) => {
-            const day = eventDay(e);
-            return (
-              <div key={e.id} className="flex gap-3">
-                <div
-                  className={`w-24 shrink-0 pt-3 text-xs tabular-nums ${
-                    day && day < now ? "text-slate-600" : "text-slate-300"
-                  }`}
-                >
-                  {day ? formatDay(day) : ""}
+      {dated.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Dated <span className="text-slate-600">· {dated.length}</span>
+          </h3>
+          <div className="space-y-3">
+            {dated.map((e) => {
+              const day = eventDay(e);
+              return (
+                <div key={e.id} className="flex gap-3">
+                  <div
+                    className={`w-24 shrink-0 pt-3 text-xs tabular-nums ${
+                      day && day < now ? "text-slate-600" : "text-slate-300"
+                    }`}
+                  >
+                    {day ? formatDay(day) : ""}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <EventCard e={e} />
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <EventCard e={e} />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {undated.length > 0 && (
         <div>
@@ -163,7 +175,8 @@ function CalendarView({ events, month }: { events: BanskoEvent[]; month: Month }
   const byDay = new Map<DayKey, BanskoEvent[]>();
   for (const day of cells) {
     if (!day) continue;
-    const onDay = events.filter((e) => occursOn(e, day));
+    // Past days stay blank — a recurring event's earlier occurrences are history.
+    const onDay = day < now ? [] : events.filter((e) => occursOn(e, day));
     onDay.forEach((e) => placed.add(e.id));
     if (onDay.length > 0) byDay.set(day, onDay);
   }
@@ -232,7 +245,7 @@ function CalendarView({ events, month }: { events: BanskoEvent[]; month: Month }
             Not on the calendar <span className="text-slate-600">· {unplaced.length}</span>
           </h3>
           <p className="mb-2 text-xs text-slate-500">
-            These fall outside {monthLabel(month)}, or the announcement never named a day.
+            No occurrence left in {monthLabel(month)}, or the announcement never named a day.
           </p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {unplaced.map((e) => (
@@ -298,15 +311,9 @@ export default async function Home({
   const month = parseMonth(rawMonth);
 
   const [stats, feed] = await Promise.all([readGroupStats(), readEvents()]);
-  const events = feed.events;
-
-  const updatedAt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Sofia",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date());
+  // Only what's still ahead of us. The count of what got dropped is shown, so an
+  // empty page reads as "the feed is stale" rather than "the page is broken".
+  const { upcoming: events, past } = splitUpcoming(feed.events);
 
   const announcementCount = events.reduce((n, e) => n + e.announcements.length, 0);
 
@@ -315,20 +322,11 @@ export default async function Home({
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            Bansko Dashboard <span aria-hidden>🏔️</span>
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            What the Bansko community groups are talking about.
-          </p>
-        </div>
-        <div className="text-right text-sm">
-          <Clock />
-          <p className="mt-1 text-xs text-slate-500">Last updated {updatedAt}</p>
-        </div>
-      </header>
+      <SiteHeader
+        title="Bansko Dashboard 🏔️"
+        blurb="What the Bansko community groups are talking about."
+        active="/"
+      />
 
       {/* Events lead the page — each with where/when/by whom it was advertised */}
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
@@ -338,7 +336,8 @@ export default async function Home({
               <span aria-hidden>📅</span> Events
             </h2>
             <p className="text-xs text-slate-400">
-              {events.length} events · {announcementCount} announcements across the groups
+              {events.length} upcoming · {announcementCount} announcements across the groups
+              {past.length > 0 && ` · ${past.length} past hidden`}
               {feed.source === "static" && " · hand-curated fallback, nothing pushed yet"}
             </p>
           </div>

@@ -126,6 +126,41 @@ export function isPlaceable(e: BanskoEvent): boolean {
   return eventDay(e) !== null || Boolean(e.recurring && e.weekdays?.length);
 }
 
+function daysBetween(from: DayKey, to: DayKey): number {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  const ms = Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd);
+  return Math.round(ms / 86_400_000);
+}
+
+/**
+ * How long an undated one-off stays on the page. Something announced as "20:30"
+ * with no day is only meaningful for a few days around the announcement; after
+ * that it's a description of something that already happened.
+ */
+const UNDATED_TTL_DAYS = 7;
+
+/** Is this event still ahead of us on `now`? */
+export function isUpcoming(e: BanskoEvent, now: DayKey = today()): boolean {
+  // Standing things keep happening — a weekly class has no expiry.
+  if (e.recurring) return true;
+
+  const day = eventDay(e);
+  if (day) return day >= now;
+
+  // No date to judge it by, so the announcement is the only clock we have.
+  const announced = announcedOn(e);
+  return announced === null || daysBetween(announced, now) <= UNDATED_TTL_DAYS;
+}
+
+/** Split into what's still ahead and what has been and gone. */
+export function splitUpcoming(events: BanskoEvent[], now: DayKey = today()) {
+  return {
+    upcoming: events.filter((e) => isUpcoming(e, now)),
+    past: events.filter((e) => !isUpcoming(e, now)),
+  };
+}
+
 /** Dated events oldest-first; the rest by most recent announcement. */
 export function splitByDate(events: BanskoEvent[]) {
   const dated = events
