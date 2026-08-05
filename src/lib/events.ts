@@ -1,63 +1,33 @@
-import { get } from "@vercel/blob";
 import { cacheLife, cacheTag } from "next/cache";
 
-import { EVENTS, type BanskoEvent, type Weekday } from "@/data/bansko";
+import type { BanskoEvent, Weekday } from "@/data/bansko";
 import { hasDatabase, readEventsFromDb } from "@/lib/db";
 
-/**
- * Events come from one of three places, in order of preference:
- *
- *  - the database (db/migrations), where events reference the stored messages that
- *    announced them,
- *  - a private blob the VPS pushes to (see src/app/api/events/route.ts), which is
- *    finished JSON with the provenance transcribed rather than referenced, or
- *  - the hand-curated EVENTS array in src/data/bansko.ts, so the page is never
- *    empty.
- *
- * The fallbacks are why the database can be provisioned without a flag day: an
- * unset DATABASE_URL just means the previous path is still in use.
- */
-export type EventFeed = {
-  events: BanskoEvent[];
-  /** Where the events came from — surfaced in the UI so the page is honest. */
-  source: "db" | "push" | "static";
-  /** When the push was generated; null for the database and static paths. */
-  generatedAt: string | null;
-};
-
-export const EVENTS_BLOB_PATH = "events.json";
-
-/** Cache tag the push endpoints revalidate, so a push shows up immediately. */
+/** Cache tag /api/messages revalidates, so a push shows up immediately. */
 export const EVENTS_TAG = "events";
 
-export async function readEvents(): Promise<EventFeed> {
+/**
+ * Events come from the database, and only from the database.
+ *
+ * There used to be two fallbacks behind this: a pushed JSON blob, and a
+ * hand-curated array of July 2026 events in src/data/bansko.ts. Both are gone. The
+ * blob was never written once extraction moved into Postgres, and the static array
+ * was worse than useless — a database hiccup would have silently served a fortnight
+ * of stale events as though they were current, which is exactly the failure a
+ * dashboard must not have. An empty list is the honest answer when there's nothing
+ * to show.
+ */
+export async function readEvents(): Promise<BanskoEvent[]> {
   "use cache";
   cacheLife("hours");
   cacheTag(EVENTS_TAG);
 
-  const fallback: EventFeed = { events: EVENTS, source: "static", generatedAt: null };
-
-  if (hasDatabase()) {
-    try {
-      const events = await readEventsFromDb();
-      if (events.length > 0) return { events, source: "db", generatedAt: null };
-    } catch (err) {
-      // A database that's configured but unreachable shouldn't take the page down;
-      // fall through to the blob. Logged so it isn't silent.
-      console.error("readEventsFromDb failed, falling back to blob", err);
-    }
-  }
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return fallback;
+  if (!hasDatabase()) return [];
   try {
-    const result = await get(EVENTS_BLOB_PATH, { access: "private" });
-    if (!result) return fallback;
-    const text = await new Response(result.stream).text();
-    const parsed = JSON.parse(text) as { generatedAt: string; events: BanskoEvent[] };
-    if (!Array.isArray(parsed.events) || parsed.events.length === 0) return fallback;
-    return { events: parsed.events, source: "push", generatedAt: parsed.generatedAt };
-  } catch {
-    return fallback;
+    return await readEventsFromDb();
+  } catch (err) {
+    console.error("readEventsFromDb failed", err);
+    return [];
   }
 }
 

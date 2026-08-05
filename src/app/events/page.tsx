@@ -19,7 +19,6 @@ import {
   today,
   weekdayLabel,
   type DayKey,
-  type EventFeed,
   type Month,
 } from "@/lib/events";
 
@@ -116,8 +115,8 @@ function ListView({ events }: { events: BanskoEvent[] }) {
   if (events.length === 0) {
     return (
       <p className="px-1 py-2 text-sm text-slate-400">
-        Nothing upcoming. Everything in the feed has already happened — the events
-        panel needs a fresh push.
+        Nothing upcoming — either the database has no events yet, or everything in it
+        has already happened.
       </p>
     );
   }
@@ -270,10 +269,10 @@ function CalendarView({ events, month }: { events: BanskoEvent[]; month: Month }
  */
 async function EventsPanel({
   searchParams,
-  feed,
+  allEvents,
 }: {
   searchParams: Promise<{ view?: string; month?: string }>;
-  feed: EventFeed;
+  allEvents: BanskoEvent[];
 }) {
   const { view: rawView, month: rawMonth } = await searchParams;
   const view = rawView === "calendar" ? "calendar" : "list";
@@ -281,7 +280,7 @@ async function EventsPanel({
 
   // Only what's still ahead of us. The count of what got dropped is shown, so an
   // empty page reads as "the feed is stale" rather than "the page is broken".
-  const { upcoming: events, past } = splitUpcoming(feed.events);
+  const { upcoming: events, past } = splitUpcoming(allEvents);
   const announcementCount = events.reduce((n, e) => n + e.announcements.length, 0);
 
   return (
@@ -317,11 +316,11 @@ export default async function Events({
   searchParams: Promise<{ view?: string; month?: string }>;
 }) {
   // Cached for an hour (see src/lib/events.ts), so this doesn't block the shell.
-  const feed = await readEvents();
+  const allEvents = await readEvents();
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Bansko Events 📅" active="/events" updatedAt={feed.generatedAt} />
+      <SiteHeader title="Bansko Events 📅" active="/events" />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3">
@@ -331,7 +330,7 @@ export default async function Events({
         </header>
 
         <Suspense fallback={<p className="px-1 py-2 text-sm text-slate-500">Loading events…</p>}>
-          <EventsPanel searchParams={searchParams} feed={feed} />
+          <EventsPanel searchParams={searchParams} allEvents={allEvents} />
         </Suspense>
       </section>
     </main>
