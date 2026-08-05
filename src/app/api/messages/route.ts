@@ -28,11 +28,17 @@ import { EVENTS_TAG } from "@/lib/events";
 const MAX_MESSAGES = 5000;
 
 type Payload = {
-  channels: { jid: string; name: string; category?: string; isListed?: boolean }[];
+  channels: { jid: string; name: string }[];
   messages: MessageInput[];
 };
 
-const CATEGORIES = new Set(["social", "sport", "private"]);
+/**
+ * Channels carry only identity here — jid and name. Which bucket a channel appears
+ * in and whether it's listed at all are this backend's decisions, held in the
+ * channels table; a push that sent them would be overriding presentation from the
+ * outside and would fight every manual re-bucketing. Extra keys are ignored rather
+ * than rejected, so an older pusher still sending `category` keeps working.
+ */
 
 function isValid(body: unknown): body is Payload {
   if (typeof body !== "object" || body === null) return false;
@@ -43,13 +49,7 @@ function isValid(body: unknown): body is Payload {
   const channelsOk = b.channels.every((c) => {
     if (typeof c !== "object" || c === null) return false;
     const ch = c as Record<string, unknown>;
-    return (
-      typeof ch.jid === "string" &&
-      ch.jid.length > 0 &&
-      typeof ch.name === "string" &&
-      (ch.category === undefined || (typeof ch.category === "string" && CATEGORIES.has(ch.category))) &&
-      (ch.isListed === undefined || typeof ch.isListed === "boolean")
-    );
+    return typeof ch.jid === "string" && ch.jid.length > 0 && typeof ch.name === "string";
   });
   if (!channelsOk) return false;
 
@@ -92,12 +92,7 @@ export async function POST(req: NextRequest) {
   }
 
   const channelIds = await upsertChannels(
-    body.channels.map((c) => ({
-      jid: c.jid,
-      name: c.name,
-      category: c.category as "social" | "sport" | "private" | undefined,
-      isListed: c.isListed,
-    })),
+    body.channels.map((c) => ({ jid: c.jid, name: c.name })),
   );
 
   const unknownChannels = [

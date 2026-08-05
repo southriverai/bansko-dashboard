@@ -46,6 +46,12 @@ const SPORT_PATTERNS: RegExp[] = [
   /\bhik(e|es|ing)\b/,
   /\btrek/,
   /\bparaglid/,
+  // "Central BG PG Pilots" — the paragliding groups don't all spell it out.
+  /\bpg\b/,
+  /\bpilots\b/,
+  // Cold plunge is the same kind of group as the dance and yoga ones: something
+  // people turn up to and do with their bodies.
+  /\bplunge\b/,
   /\bswim/,
   /\bcrossfit\b/,
   /\bgym\b/,

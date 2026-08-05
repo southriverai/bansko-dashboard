@@ -1,5 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
-import { groupCategory } from "@/data/bansko";
+import { groupCategory, type GroupCategory } from "@/data/bansko";
+import { normalizeChannelName, readChannelPresentation } from "@/lib/db";
 import { readGroupStats, type GroupStat } from "@/lib/stats";
 
 /** One group's top posters. */
@@ -46,12 +47,22 @@ export const metadata = { title: "Bansko Activity" };
 
 
 export default async function Activity() {
-  const stats = await readGroupStats();
+  const [stats, presentation] = await Promise.all([readGroupStats(), readChannelPresentation()]);
 
-  const groups = stats?.groups ?? [];
-  const socialGroups = groups.filter((g) => groupCategory(g.group) === "social");
-  const sportGroups = groups.filter((g) => groupCategory(g.group) === "sport");
-  const privateGroups = groups.filter((g) => groupCategory(g.group) === "private");
+  // The channels table decides both questions where it knows the channel: which
+  // bucket it belongs in, and whether it's shown at all. The name-derived category
+  // is only the fallback for a group the database hasn't seen — which is how a
+  // re-bucketing done in SQL takes effect without a deploy.
+  const bucketOf = (name: string): GroupCategory =>
+    presentation.get(normalizeChannelName(name))?.category ?? groupCategory(name);
+  const isListed = (name: string): boolean =>
+    presentation.get(normalizeChannelName(name))?.isListed ?? true;
+
+  const groups = (stats?.groups ?? []).filter((g) => isListed(g.group));
+  const hidden = (stats?.groups ?? []).length - groups.length;
+  const socialGroups = groups.filter((g) => bucketOf(g.group) === "social");
+  const sportGroups = groups.filter((g) => bucketOf(g.group) === "sport");
+  const privateGroups = groups.filter((g) => bucketOf(g.group) === "private");
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
@@ -65,6 +76,7 @@ export default async function Activity() {
             </h2>
             <p className="text-xs text-slate-400">
               Top 3 per group{stats ? ` · last ${stats.windowDays} days` : ""}
+              {hidden > 0 && ` · ${hidden} group${hidden === 1 ? "" : "s"} hidden`}
             </p>
           </div>
           {stats && (

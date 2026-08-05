@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import postgres from "postgres";
 
-import type { BanskoEvent, EventTag, GroupCategory, Weekday } from "@/data/bansko";
+import { groupCategory, type BanskoEvent, type EventTag, type GroupCategory, type Weekday } from "@/data/bansko";
 
 /** Cache tag /api/messages revalidates, so a push updates the freshness stamp. */
 export const MESSAGES_TAG = "messages";
@@ -83,12 +83,17 @@ export type EventAnnouncementRow = {
 
 // --- Writes ------------------------------------------------------------------
 
-export type ChannelInput = { jid: string; name: string; category?: GroupCategory; isListed?: boolean };
+export type ChannelInput = { jid: string; name: string };
 
 /**
- * Upsert channels by jid, returning their ids keyed by jid. Name and last_seen_at
- * are refreshed; category and is_listed are only set on insert, so a manual
- * re-bucketing in the database survives the next push.
+ * Upsert channels by jid, returning their ids keyed by jid.
+ *
+ * `category` and `is_listed` are presentation decisions and belong to this backend,
+ * not to whatever is pushing messages: the pusher reports which channels it saw, the
+ * dashboard decides which bucket they go in and whether they're shown at all. So a
+ * new channel gets its category derived from its name (groupCategory), and on
+ * conflict only `name` and `last_seen_at` are touched — a category or is_listed set
+ * by hand in the database is never overwritten by a later push.
  */
 export async function upsertChannels(channels: ChannelInput[]): Promise<Map<string, number>> {
   if (channels.length === 0) return new Map();
@@ -96,8 +101,8 @@ export async function upsertChannels(channels: ChannelInput[]): Promise<Map<stri
   const rows = channels.map((c) => ({
     jid: c.jid,
     name: c.name,
-    category: c.category ?? "social",
-    is_listed: c.isListed ?? true,
+    category: groupCategory(c.name),
+    is_listed: true,
   }));
 
   const saved = await sql<{ id: number; jid: string }[]>`
@@ -155,6 +160,13 @@ export async function insertMessages(
  *
  * The announcement fields come from the joined message and channel rows — so what
  * the page shows as provenance is the stored message, not a claim about one.
+ *
+ * Unlisted channels are excluded, and the joins are inner joins on purpose: naming
+ * a private group as the source of an announcement would publish the group's
+ * existence and a member's name on a public page. So an event announced only in
+ * unlisted channels doesn't appear at all, and one announced in both shows only the
+ * listed announcements. An event with no surviving provenance is dropped rather than
+ * shown bare — provenance is the point of the model.
  */
 export async function readEventsFromDb(): Promise<BanskoEvent[]> {
   const sql = db();
@@ -173,17 +185,14 @@ export async function readEventsFromDb(): Promise<BanskoEvent[]> {
   >`
     SELECT e.slug, e.title, e.when_text, e.starts_at, e.where_text, e.tag,
            e.recurring, e.weekdays,
-           COALESCE(
-             json_agg(
-               json_build_object('group', c.name, 'by', m.sender_name, 'at', m.sent_at)
-               ORDER BY m.sent_at DESC
-             ) FILTER (WHERE m.id IS NOT NULL),
-             '[]'
+           json_agg(
+             json_build_object('group', c.name, 'by', m.sender_name, 'at', m.sent_at)
+             ORDER BY m.sent_at DESC
            ) AS announcements
       FROM events e
-      LEFT JOIN event_announcements ea ON ea.event_id = e.id
-      LEFT JOIN messages m            ON m.id = ea.message_id
-      LEFT JOIN channels c            ON c.id = m.channel_id
+      JOIN event_announcements ea ON ea.event_id = e.id
+      JOIN messages m            ON m.id = ea.message_id
+      JOIN channels c            ON c.id = m.channel_id AND c.is_listed
      GROUP BY e.id
      ORDER BY e.starts_at NULLS LAST, e.title
   `;
@@ -247,5 +256,60 @@ export async function readLastMessagePush(): Promise<string | null> {
   } catch (err) {
     console.error("readLastMessagePush failed", err);
     return null;
+  }
+}
+
+/**
+ * Group names in the stats feed carry emoji and punctuation the database rows don't
+ * ("Padel Bansko 🎾" vs "Padel Bansko"), so matching the two needs a normal form.
+ *
+ * Keycap sequences are stripped before anything else: "2️⃣0️⃣2️⃣6️⃣" is four ASCII
+ * digits each followed by a variation selector and a combining keycap, so treating
+ * those as punctuation would split the year into "2 0 2 6" and fail to match the
+ * plain "2026" in the database. That mattered — a name that doesn't match is a name
+ * whose is_listed flag can't hide it.
+ */
+export function normalizeChannelName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[️⃣]/g, "")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, " ")
+    .trim();
+}
+
+export type ChannelPresentation = { category: GroupCategory; isListed: boolean };
+
+/**
+ * How each known channel should be presented, keyed by normalized name.
+ *
+ * This is what makes the `category` and `is_listed` columns load-bearing rather than
+ * decorative: the pages consult it instead of re-deriving a bucket from the name on
+ * every render, so moving a group is a row update.
+ *
+ * Cached for minutes rather than the hour used for the feeds: re-bucketing happens by
+ * hand in SQL, which can't revalidate a tag, and waiting an hour to see whether you
+ * hid the right group is miserable. It's a 21-row query and revalidation only happens
+ * when someone visits, so this costs nothing measurable.
+ */
+export async function readChannelPresentation(): Promise<Map<string, ChannelPresentation>> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(MESSAGES_TAG);
+
+  if (!hasDatabase()) return new Map();
+  try {
+    const sql = db();
+    const rows = await sql<{ name: string; category: GroupCategory; is_listed: boolean }[]>`
+      SELECT name, category, is_listed FROM channels
+    `;
+    return new Map(
+      rows.map((r) => [
+        normalizeChannelName(r.name),
+        { category: r.category, isListed: r.is_listed },
+      ]),
+    );
+  } catch (err) {
+    console.error("readChannelPresentation failed", err);
+    return new Map();
   }
 }
