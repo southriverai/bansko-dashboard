@@ -7,19 +7,32 @@ export const metadata = {
 };
 
 
-function shortDate(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Sofia",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(iso));
+const DATE_FMT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Sofia",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/**
+ * Null rather than a throw when the timestamp is unparseable.
+ *
+ * These strings come from a pushed feed, so they're only as good as whatever wrote
+ * them — and Intl throws RangeError on an Invalid Date, which during prerendering
+ * is not a bad date on a page but a failed production build. One malformed field in
+ * a data feed should cost you that field, not the deploy.
+ */
+function shortDate(iso: string): string | null {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : DATE_FMT.format(ms);
 }
 
 /** One provider, with every message that put them on the list. */
 function ProviderCard({ p }: { p: RentalProvider }) {
   const first = firstMentioned(p);
   const last = lastMentioned(p);
+  const firstLabel = first ? shortDate(first) : null;
+  const lastLabel = last ? shortDate(last) : null;
 
   return (
     <article className="rounded-xl bg-white/5 p-3">
@@ -42,8 +55,8 @@ function ProviderCard({ p }: { p: RentalProvider }) {
 
       <p className="mt-1 text-[11px] text-slate-500">
         {p.mentions.length} mention{p.mentions.length === 1 ? "" : "s"}
-        {first && last && first !== last && ` · ${shortDate(first)} – ${shortDate(last)}`}
-        {first && last && first === last && ` · ${shortDate(first)}`}
+        {firstLabel && lastLabel && firstLabel !== lastLabel && ` · ${firstLabel} – ${lastLabel}`}
+        {firstLabel && lastLabel && firstLabel === lastLabel && ` · ${firstLabel}`}
       </p>
 
       <ul className="mt-2 space-y-1 border-t border-white/5 pt-2">
@@ -58,7 +71,7 @@ function ProviderCard({ p }: { p: RentalProvider }) {
               <span className="text-slate-300">{m.by}</span>
               {m.note && <span className="text-slate-500"> · {m.note}</span>}
             </span>
-            <span className="shrink-0 tabular-nums text-slate-500">{shortDate(m.at)}</span>
+            <span className="shrink-0 tabular-nums text-slate-500">{shortDate(m.at) ?? "—"}</span>
           </li>
         ))}
       </ul>

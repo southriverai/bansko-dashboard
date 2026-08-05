@@ -21,7 +21,11 @@ function isMention(value: unknown): boolean {
   return (
     typeof m.group === "string" &&
     typeof m.by === "string" &&
+    // Must actually parse as a date, not merely be a string. A timestamp that
+    // `new Date()` rejects reaches the page as an Invalid Date, and formatting one
+    // throws — which took down a production build rather than showing a bad date.
     typeof m.at === "string" &&
+    !Number.isNaN(Date.parse(m.at)) &&
     (m.kind === "offer" || m.kind === "suggestion")
   );
 }
