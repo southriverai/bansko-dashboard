@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import Clock from "@/components/Clock";
+import LastUpdated from "@/components/LastUpdated";
+import { readLastMessagePush } from "@/lib/db";
 
 /** Top-level tabs: group activity, what's on, and who rents places out. */
 const TABS = [
@@ -28,7 +30,7 @@ function feedbackHref(): string | null {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
-export default function SiteHeader({
+export default async function SiteHeader({
   title,
   blurb,
   active,
@@ -47,15 +49,15 @@ export default function SiteHeader({
    */
   updatedAt?: string | null;
 }) {
-  const updatedLabel = updatedAt
-    ? new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/Sofia",
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(updatedAt))
-    : null;
+  // The pipeline's heartbeat beats the individual feed timestamps: it says when the
+  // VPS last made contact at all, which is what you actually want to know when the
+  // page looks stale. Falls back to the feed's own stamp until messages are pushed.
+  const pushedAt = await readLastMessagePush();
+  const stamp = pushedAt
+    ? { at: pushedAt, label: "Messages pushed" }
+    : updatedAt
+      ? { at: updatedAt, label: "Last updated" }
+      : null;
 
   const feedback = feedbackHref();
 
@@ -109,8 +111,10 @@ export default function SiteHeader({
         </div>
         <div className="text-right text-sm">
           <Clock />
-          {updatedLabel && (
-            <p className="mt-1 text-xs text-slate-500">Last updated {updatedLabel}</p>
+          {stamp && (
+            <p className="mt-1 text-xs text-slate-500">
+              <LastUpdated at={stamp.at} label={stamp.label} />
+            </p>
           )}
         </div>
       </div>

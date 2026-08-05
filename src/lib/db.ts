@@ -1,6 +1,10 @@
+import { cacheLife, cacheTag } from "next/cache";
 import postgres from "postgres";
 
 import type { BanskoEvent, EventTag, GroupCategory, Weekday } from "@/data/bansko";
+
+/** Cache tag /api/messages revalidates, so a push updates the freshness stamp. */
+export const MESSAGES_TAG = "messages";
 
 /**
  * Postgres access. Provider-agnostic — any DATABASE_URL will do (Neon, Supabase,
@@ -209,4 +213,39 @@ export async function readListedChannels(): Promise<ChannelRow[]> {
      WHERE is_listed
      ORDER BY last_seen_at DESC NULLS LAST, name
   `;
+}
+
+/**
+ * When the VPS last pushed to /api/messages — the pipeline's heartbeat, and the
+ * most honest "is this dashboard current?" signal there is.
+ *
+ * Two sources, whichever is later: channels.last_seen_at moves on every push (the
+ * upsert touches it even when nothing new arrives), messages.created_at moves only
+ * when rows are actually inserted. Taking the max means a push that found no new
+ * messages still counts as contact, which is what "last push" should mean.
+ *
+ * Cached like the rest — the value only changes when a push happens, and the push
+ * revalidates MESSAGES_TAG, so there's no staleness to worry about. The "x minutes
+ * ago" phrasing is computed in the browser (see src/components/LastUpdated.tsx)
+ * precisely because this string is cached and would otherwise freeze.
+ */
+export async function readLastMessagePush(): Promise<string | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(MESSAGES_TAG);
+
+  if (!hasDatabase()) return null;
+  try {
+    const sql = db();
+    const [row] = await sql<{ at: Date | null }[]>`
+      SELECT GREATEST(
+               (SELECT max(last_seen_at) FROM channels),
+               (SELECT max(created_at)   FROM messages)
+             ) AS at
+    `;
+    return row?.at ? row.at.toISOString() : null;
+  } catch (err) {
+    console.error("readLastMessagePush failed", err);
+    return null;
+  }
 }

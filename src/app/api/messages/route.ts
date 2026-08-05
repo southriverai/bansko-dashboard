@@ -1,7 +1,13 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { hasDatabase, insertMessages, upsertChannels, type MessageInput } from "@/lib/db";
+import {
+  MESSAGES_TAG,
+  hasDatabase,
+  insertMessages,
+  upsertChannels,
+  type MessageInput,
+} from "@/lib/db";
 import { EVENTS_TAG } from "@/lib/events";
 
 /**
@@ -102,6 +108,8 @@ export async function POST(req: NextRequest) {
   // Events are read from these rows (channel names and sender names are joined in),
   // so new messages can change what the events page shows.
   revalidateTag(EVENTS_TAG, "max");
+  // Also refresh the "messages pushed x ago" stamp in the header.
+  revalidateTag(MESSAGES_TAG, "max");
 
   return NextResponse.json({
     ok: true,
