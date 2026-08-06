@@ -64,9 +64,6 @@ export default async function SiteHeader({
   return (
     <header className="mb-8">
       <p className="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-slate-300">
-        <span aria-hidden className="mr-1.5">
-          👋
-        </span>
         This dashboard is managed by <span className="font-medium text-white">{MAINTAINER}</span>.
         {feedback ? (
           <>

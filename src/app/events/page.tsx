@@ -77,9 +77,6 @@ function EventCard({ e }: { e: BanskoEvent }) {
       <ul className="mt-2 space-y-1 border-t border-white/5 pt-2">
         {e.announcements.map((a, i) => (
           <li key={`${a.group}-${a.at}-${i}`} className="flex items-baseline gap-2 text-[11px]">
-            <span aria-hidden className="text-slate-600">
-              📣
-            </span>
             <span className="min-w-0 flex-1 truncate text-slate-400">
               <span className="text-slate-300">{a.group}</span>
               <span className="text-slate-600"> · by </span>
@@ -320,12 +317,12 @@ export default async function Events({
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Bansko Events 📅" active="/events" />
+      <SiteHeader title="Bansko Events" active="/events" />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3">
           <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-            <span aria-hidden>🗓️</span> What’s on
+            What’s on
           </h2>
         </header>
 

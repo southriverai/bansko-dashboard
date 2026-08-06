@@ -62,10 +62,9 @@ function ProviderCard({ p }: { p: RentalProvider }) {
       <ul className="mt-2 space-y-1 border-t border-white/5 pt-2">
         {p.mentions.map((m, i) => (
           <li key={`${m.group}-${m.at}-${i}`} className="flex items-baseline gap-2 text-[11px]">
-            <span aria-hidden className="text-slate-600">
-              {m.kind === "offer" ? "🏠" : "👍"}
-            </span>
             <span className="min-w-0 flex-1 truncate text-slate-400">
+              <span className="text-slate-600">{m.kind === "offer" ? "offered" : "suggested"}</span>
+              <span className="text-slate-600"> · </span>
               <span className="text-slate-300">{m.group}</span>
               <span className="text-slate-600"> · by </span>
               <span className="text-slate-300">{m.by}</span>
@@ -104,7 +103,7 @@ export default async function Rentals() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
       <SiteHeader
-        title="Yet Another Bansko Rental Dashboard 🏠"
+        title="Yet Another Bansko Rental Dashboard"
         active="/rentals"
         updatedAt={feed.generatedAt}
       />
@@ -113,7 +112,7 @@ export default async function Rentals() {
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-              <span aria-hidden>🔑</span> Rental providers
+              Rental providers
             </h2>
             <p className="text-xs text-slate-400">
               {feed.providers.length} providers · {mentionCount} mentions
@@ -129,8 +128,8 @@ export default async function Rentals() {
 
         {feed.providers.length > 0 && (
           <div className="space-y-5">
-            <Bucket title="🏠 Offered a place themselves" providers={offered} />
-            <Bucket title="👍 Suggested by someone else" providers={suggested} />
+            <Bucket title="Offered a place themselves" providers={offered} />
+            <Bucket title="Suggested by someone else" providers={suggested} />
           </div>
         )}
       </section>

@@ -15,7 +15,7 @@ function GroupCard({ g }: { g: GroupStat }) {
         {g.top.map((t, i) => (
           <li key={t.name} className="flex items-baseline justify-between gap-2 text-xs">
             <span className="truncate text-slate-300">
-              <span className="mr-1 text-slate-500">{["🥇", "🥈", "🥉"][i] ?? "•"}</span>
+              <span className="mr-1 tabular-nums text-slate-500">{i + 1}.</span>
               {t.name}
             </span>
             <span className="shrink-0 tabular-nums text-emerald-400">{t.count}</span>
@@ -66,13 +66,13 @@ export default async function Activity() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-      <SiteHeader title="Bansko Activity 🏔️" active="/" updatedAt={stats?.generatedAt} />
+      <SiteHeader title="Bansko Activity" active="/" updatedAt={stats?.generatedAt} />
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-lg shadow-black/20 backdrop-blur">
         <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-              <span aria-hidden>🏆</span> Most active posters
+              Most active posters
             </h2>
             <p className="text-xs text-slate-400">
               Top 3 per group{stats ? ` · last ${stats.windowDays} days` : ""}
@@ -94,9 +94,9 @@ export default async function Activity() {
           </p>
         ) : (
           <div className="space-y-5">
-            <GroupBucket title="💬 Social" groups={socialGroups} />
-            <GroupBucket title="🏃 Sports, dance & yoga" groups={sportGroups} />
-            <GroupBucket title="🔒 Private" groups={privateGroups} />
+            <GroupBucket title="Social" groups={socialGroups} />
+            <GroupBucket title="Sports, dance & yoga" groups={sportGroups} />
+            <GroupBucket title="Private" groups={privateGroups} />
           </div>
         )}
       </section>
